@@ -1,0 +1,6 @@
+torch>=2.3
+transformers>=4.46
+accelerate>=0.34
+sentencepiece>=0.2
+# Optional: only needed for --4bit on a CUDA GPU (Colab). Not available on Windows.
+bitsandbytes>=0.43; sys_platform == "linux"
