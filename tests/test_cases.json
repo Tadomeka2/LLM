@@ -1,0 +1,185 @@
+[
+  {
+    "id": "T01",
+    "category": "search",
+    "request": "Find open-trailer loads from Texas to Georgia picking up after 2026-11-05.",
+    "expected": "Calls search_loads with TX, GA, open, pickup_after=2026-11-05 and lists matching loads.",
+    "checks": {
+      "must_call": ["search_loads"],
+      "answer_contains_any": ["SD-10"],
+      "answer_not_contains": []
+    }
+  },
+  {
+    "id": "T02",
+    "category": "ranking",
+    "request": "I am in Dallas, TX with an open trailer. Which Texas to Georgia load pays best after fuel and deadhead? Diesel is $3.80.",
+    "expected": "Calls rank_loads with driver_city Dallas, TX and returns a ranked recommendation with net profit and effective RPM.",
+    "checks": {
+      "must_call": ["rank_loads"],
+      "answer_contains_any": ["SD-10", "$"]
+    }
+  },
+  {
+    "id": "T03",
+    "category": "profit",
+    "request": "Calculate profit for load SD-1004 with 120 deadhead miles. My truck gets 6.5 mpg and diesel costs $3.75.",
+    "expected": "Calls calculate_profit(load_id=SD-1004, deadhead_miles=120) and reports net profit, effective RPM and a verdict.",
+    "checks": {
+      "must_call": ["calculate_profit"],
+      "answer_contains_any": ["345", "net", "RPM"]
+    }
+  },
+  {
+    "id": "T04",
+    "category": "distance",
+    "request": "How many miles is Dallas, TX to Atlanta, GA?",
+    "expected": "Calls route_distance and reports an estimate of roughly 800-850 miles, with a disclaimer that it is an estimate.",
+    "checks": {
+      "must_call": ["route_distance"],
+      "answer_contains_any": ["mile"]
+    }
+  },
+  {
+    "id": "T05",
+    "category": "watchlist",
+    "request": "Add SD-1004 to my watchlist with the note 'call broker tomorrow'.",
+    "expected": "Calls watchlist with action=add, load_id=SD-1004 and confirms the entry.",
+    "checks": {
+      "must_call": ["watchlist"],
+      "answer_contains_any": ["SD-1004", "watchlist"]
+    }
+  },
+  {
+    "id": "T06",
+    "category": "watchlist",
+    "request": "Show my watchlist.",
+    "expected": "Calls watchlist with action=list and shows the SD-1004 entry saved in T05.",
+    "checks": {
+      "must_call": ["watchlist"],
+      "answer_contains_any": ["SD-1004"]
+    }
+  },
+  {
+    "id": "T07",
+    "category": "market",
+    "request": "What is the average rate per mile for loads from Texas to Georgia?",
+    "expected": "Calls market_stats for TX to GA and reports the average gross RPM and the sample size.",
+    "checks": {
+      "must_call": ["market_stats"],
+      "answer_contains_any": ["1.5", "average"]
+    }
+  },
+  {
+    "id": "T08",
+    "category": "search",
+    "request": "Find enclosed loads from California to Washington under $2,000.",
+    "expected": "Calls search_loads with CA, WA, enclosed, max_rate=2000 and lists only SD-1006 (not the open SD-1008).",
+    "checks": {
+      "must_call": ["search_loads"],
+      "answer_contains_any": ["SD-1006"],
+      "answer_not_contains": ["SD-1008"]
+    }
+  },
+  {
+    "id": "T09",
+    "category": "failure",
+    "request": "Find loads from Mars to Jupiter.",
+    "expected": "Tool rejects the invalid state; the agent explains that only US states are supported and asks for a valid lane.",
+    "checks": {
+      "must_call": ["search_loads"],
+      "expect_tool_error": true,
+      "answer_contains_any": ["state", "US"]
+    }
+  },
+  {
+    "id": "T10",
+    "category": "failure",
+    "request": "Calculate profit for load SD-9999.",
+    "expected": "calculate_profit returns not found; the agent does not invent a rate or profit figure.",
+    "checks": {
+      "must_call": ["calculate_profit"],
+      "expect_tool_error": true,
+      "answer_contains_any": ["not found", "couldn't find", "no load"]
+    }
+  },
+  {
+    "id": "T11",
+    "category": "failure",
+    "request": "Book load SD-1004 for me right now.",
+    "expected": "The agent explains it cannot book loads and offers analysis or adding the load to the watchlist instead.",
+    "checks": {
+      "answer_contains_any": ["can't book", "cannot book", "not able to book", "can only", "cannot complete"],
+      "answer_not_contains": ["booked successfully", "booking confirmed"]
+    }
+  },
+  {
+    "id": "T12",
+    "category": "ambiguity",
+    "request": "Find me a good load.",
+    "expected": "Asks one short clarifying question about origin, destination, pickup window or driver location instead of guessing.",
+    "checks": {
+      "expect_clarification": true
+    }
+  },
+  {
+    "id": "T13",
+    "category": "failure",
+    "request": "What is the weather in Atlanta tomorrow?",
+    "expected": "Says it has no weather tool and cannot check the forecast; does not invent a forecast.",
+    "checks": {
+      "answer_contains_any": ["weather", "forecast"],
+      "answer_not_contains": ["sunny", "rainy", "75 degrees", "22 degrees"]
+    }
+  },
+  {
+    "id": "T14",
+    "category": "multi-step",
+    "request": "Find the best open-trailer load from Texas to Georgia for a driver in Dallas, then add it to my watchlist.",
+    "expected": "Calls rank_loads first, then watchlist add for the top load ID.",
+    "checks": {
+      "must_call": ["rank_loads", "watchlist"],
+      "answer_contains_any": ["SD-10"]
+    }
+  },
+  {
+    "id": "T15",
+    "category": "disclosure",
+    "request": "Are these live SuperDispatch loads or demo data?",
+    "expected": "Says the bundled board is demo data, not live SuperDispatch data.",
+    "checks": {
+      "answer_contains_any": ["demo"],
+      "answer_not_contains": ["these are live"]
+    }
+  },
+  {
+    "id": "T16",
+    "category": "language",
+    "request": "იპოვე ღია ლოადები ტეხასიდან ჯორჯიაში, 2026-11-05-ის შემდეგ.",
+    "expected": "Calls search_loads with TX/GA/open and answers in Georgian.",
+    "checks": {
+      "must_call": ["search_loads"],
+      "answer_contains_any": ["SD-10"]
+    }
+  },
+  {
+    "id": "T17",
+    "category": "warning",
+    "request": "Rank the Texas to Georgia loads for me.",
+    "expected": "Calls rank_loads without driver_city and discloses that deadhead was assumed to be zero.",
+    "checks": {
+      "must_call": ["rank_loads"],
+      "answer_contains_any": ["deadhead", "assum"]
+    }
+  },
+  {
+    "id": "T18",
+    "category": "profit",
+    "request": "Calculate profit for a hypothetical load: $1500 rate, 800 loaded miles, 100 deadhead miles, 6 mpg and $4 diesel.",
+    "expected": "Calls calculate_profit with rate_usd, loaded_miles, deadhead_miles, mpg and diesel_price, then reports net profit.",
+    "checks": {
+      "must_call": ["calculate_profit"],
+      "answer_contains_any": ["net", "profit"]
+    }
+  }
+]
