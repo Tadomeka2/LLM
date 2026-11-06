@@ -175,10 +175,10 @@ SuperDispatch-ის API subscription-ს მოითხოვს, ამიტ
 1. **Runtime → Change runtime type → T4 GPU**.
 2. კოდის მიღება:
    ```bash
-   !git clone https://github.com/YOUR_USER/superdispatch-agent.git
-   %cd superdispatch-agent
+   !git clone https://github.com/Tadomeka2/LLM.git
+   %cd LLM
    ```
-   (ან ატვირთე საქაღალდე და `%cd` გაუკეთე.)
+   (ან გახსენი მზა notebook: <https://colab.research.google.com/github/Tadomeka2/LLM/blob/master/notebooks/LoadPilot_Colab.ipynb>.)
 3. დამოკიდებულებები:
    ```bash
    !pip install -r requirements.txt
