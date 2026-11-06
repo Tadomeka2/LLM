@@ -86,11 +86,18 @@ def calculate_profit(
 
     _validate_cost_inputs(mpg, diesel_price, fixed_cost_per_mile, target_effective_rpm, deadhead_miles)
 
+    ignored_inputs: list[str] = []
     if load_id and (rate_usd is not None or loaded_miles is not None):
-        raise ToolError(
-            "provide either load_id or rate_usd + loaded_miles, not both",
-            hint="Use load_id for a posted load; use rate/miles only for a hypothetical one.",
-        )
+        # Small models often send both forms "just in case". A real load ID is
+        # authoritative, so use it and disclose that the extra numbers were
+        # ignored instead of failing the whole turn.
+        ignored_inputs = [
+            name
+            for name, value in (("rate_usd", rate_usd), ("loaded_miles", loaded_miles))
+            if value is not None
+        ]
+        rate_usd = None
+        loaded_miles = None
     if not load_id and (rate_usd is None or loaded_miles is None):
         raise ToolError(
             "missing load data",
@@ -122,7 +129,14 @@ def calculate_profit(
             fixed_cost_per_mile=fixed_cost_per_mile,
             target_effective_rpm=target_effective_rpm,
         )
-    return {"ok": True, **result}
+    payload = {"ok": True, **result}
+    if ignored_inputs:
+        payload["ignored_inputs"] = ignored_inputs
+        payload["note"] = (
+            "load_id was provided, so rate_usd/loaded_miles were ignored; "
+            "the board rate and loaded miles were used."
+        )
+    return payload
 
 
 @tool(

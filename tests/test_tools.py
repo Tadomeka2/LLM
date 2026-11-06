@@ -42,6 +42,15 @@ class ProfitTests(unittest.TestCase):
         self.assertIn("not found", result["error"])
         self.assertIn("hint", result)
 
+    def test_load_id_wins_over_extra_hypothetical_fields(self) -> None:
+        result = call_tool(
+            "calculate_profit",
+            {"load_id": "SD-1004", "rate_usd": 4000, "loaded_miles": 120, "deadhead_miles": 120},
+        )
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["total_miles"], 900)
+        self.assertEqual(result["ignored_inputs"], ["rate_usd", "loaded_miles"])
+
 
 class SearchTests(unittest.TestCase):
     def test_filters_tx_to_ga(self) -> None:
@@ -174,6 +183,19 @@ class ParsingTests(unittest.TestCase):
         action, error = extract_action("I think the best load is SD-1001.")
         self.assertIsNone(action)
         self.assertIn("no JSON object", error)
+
+
+class RegistryTests(unittest.TestCase):
+    def test_close_tool_name_is_resolved(self) -> None:
+        result = call_tool("market-stats", {"origin_state": "TX", "dest_state": "GA"})
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["resolved_tool"]["requested"], "market-stats")
+        self.assertEqual(result["resolved_tool"]["used"], "market_stats")
+
+    def test_unrelated_tool_name_still_fails(self) -> None:
+        result = call_tool("weather", {})
+        self.assertFalse(result["ok"])
+        self.assertIn("unknown tool", result["error"])
 
 
 if __name__ == "__main__":

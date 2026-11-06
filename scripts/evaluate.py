@@ -146,6 +146,7 @@ def main() -> int:
     parser.add_argument("--only", default=None, help="Comma-separated case IDs")
     parser.add_argument("--limit", type=int, default=None, help="Run only the first N cases")
     parser.add_argument("--max-steps", type=int, default=8)
+    parser.add_argument("--max-new-tokens", type=int, default=config.MAX_NEW_TOKENS)
     parser.add_argument("--temperature", type=float, default=0.1)
     parser.add_argument("--markdown", default=str(DEFAULT_MARKDOWN))
     parser.add_argument("--json", default=str(DEFAULT_JSON))
@@ -176,6 +177,7 @@ def main() -> int:
         args.model,
         device=args.device,
         load_in_4bit=args.four_bit,
+        max_new_tokens=args.max_new_tokens,
         temperature=args.temperature,
         verbose=not args.quiet,
     )
@@ -218,6 +220,9 @@ def main() -> int:
                 print("   " + "; ".join(failures))
             json_path.parent.mkdir(parents=True, exist_ok=True)
             json_path.write_text(json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8")
+            write_markdown(records, args.model, markdown_path)
+            if getattr(llm, "device", "").startswith("cuda"):
+                llm._torch.cuda.empty_cache()
     finally:
         llm.close()
 

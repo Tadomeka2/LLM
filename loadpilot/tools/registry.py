@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import difflib
 import inspect
 import logging
 from dataclasses import dataclass
@@ -121,12 +122,20 @@ def _validate(tool_: Tool, args: dict) -> dict:
 def call_tool(name: str, args: dict) -> dict:
     """Execute a tool and always return a JSON-serializable observation."""
 
+    requested_name = name
     tool_ = get_tool(name)
     if tool_ is None:
-        return ToolError(
-            f"unknown tool '{name}'",
-            hint="Available tools: " + ", ".join(_REGISTRY) + ".",
-        ).to_dict()
+        # Small models sometimes emit a close variant ("watch_list",
+        # "market-stats", "calculate_profits"). Resolve it instead of losing
+        # the whole turn; the observation records the substitution.
+        close = difflib.get_close_matches(name, list(_REGISTRY), n=1, cutoff=0.6)
+        if not close:
+            return ToolError(
+                f"unknown tool '{name}'",
+                hint="Available tools: " + ", ".join(_REGISTRY) + ".",
+            ).to_dict()
+        tool_ = get_tool(close[0])
+        name = tool_.name
 
     try:
         cleaned = _validate(tool_, args if args is not None else {})
@@ -149,6 +158,8 @@ def call_tool(name: str, args: dict) -> dict:
         }
 
     if not isinstance(result, dict):
-        return {"ok": True, "result": result}
+        result = {"ok": True, "result": result}
     result.setdefault("ok", True)
+    if requested_name != name:
+        result["resolved_tool"] = {"requested": requested_name, "used": name}
     return result

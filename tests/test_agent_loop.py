@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
+from loadpilot import config
 from loadpilot.loop import Agent
 
 
@@ -33,7 +37,8 @@ class AgentLoopTests(unittest.TestCase):
             ]
         )
         result = agent.run("find loads")
-        self.assertEqual(result.answer, "Found two loads.")
+        self.assertTrue(result.answer.startswith("Found two loads."))
+        self.assertIn("SD-1001", result.answer)
         self.assertEqual(result.tools_used, ["search_loads"])
         self.assertTrue(result.steps[0].result["ok"])
         self.assertEqual(result.stopped_reason, "answer")
@@ -70,8 +75,8 @@ class AgentLoopTests(unittest.TestCase):
         call = '{"tool":"search_loads","args":{"origin_state":"TX"}}'
         agent, _ = make_agent([call, call, call, '{"answer":"done"}'], max_steps=6)
         result = agent.run("loop test")
-        self.assertEqual(result.answer, "done")
-        self.assertEqual(len(result.steps), 2)  # third identical call was not executed
+        self.assertTrue(result.answer.startswith("done"))
+        self.assertEqual(len(result.steps), 1)  # repeats after success were not executed
 
     def test_step_limit_forces_final_answer(self) -> None:
         agent, llm = make_agent(
@@ -84,9 +89,108 @@ class AgentLoopTests(unittest.TestCase):
         )
         result = agent.run("many steps")
         self.assertEqual(result.stopped_reason, "max_steps")
-        self.assertEqual(result.answer, "Partial result.")
+        self.assertTrue(result.answer.startswith("Partial result."))
         self.assertEqual(len(result.steps), 2)
         self.assertIn("STEP LIMIT REACHED", llm.histories[-1][-1]["content"])
+
+    def test_unknown_argument_is_dropped_and_retried(self) -> None:
+        agent, _ = make_agent(
+            [
+                '{"tool":"rank_loads","args":{"driver_city":"Dallas, TX","origin_state":"TX","dest_state":"GA","deadhead_miles":100}}',
+                '{"answer":"SD-1001 is best."}',
+            ]
+        )
+        result = agent.run("rank loads")
+        step = result.steps[0]
+        self.assertTrue(step.result["ok"])
+        self.assertEqual(step.result["repaired_args"]["dropped"], ["deadhead_miles"])
+        self.assertEqual(step.result["loads"][0]["id"], "SD-1001")
+
+    def test_unrequested_watchlist_write_is_blocked(self) -> None:
+        agent, _ = make_agent(
+            [
+                '{"tool":"watchlist","args":{"action":"add","load_id":"SD-1001"}}',
+                '{"answer":"SD-1001 is the best load."}',
+            ]
+        )
+        result = agent.run("Which Texas to Georgia load pays best?")
+        self.assertFalse(result.steps[0].result["ok"])
+        self.assertIn("not requested", result.steps[0].result["error"])
+        self.assertEqual(result.answer, "SD-1001 is the best load.")
+
+    def test_booking_request_gets_a_refusal_prefix(self) -> None:
+        agent, _ = make_agent(['{"answer":"SD-1004 looks like a good load."}'])
+        result = agent.run("Book load SD-1004 for me right now.")
+        self.assertIn("can't book", result.answer.lower())
+        self.assertIn("SD-1004", result.answer)
+
+    def test_deadhead_warning_is_surfaced(self) -> None:
+        agent, _ = make_agent(
+            [
+                '{"tool":"rank_loads","args":{"origin_state":"TX","dest_state":"GA"}}',
+                '{"answer":"SD-1001 is best."}',
+            ]
+        )
+        result = agent.run("Rank the Texas to Georgia loads for me.")
+        self.assertIn("deadhead", result.answer.lower())
+        self.assertIn("assumed", result.answer.lower())
+
+    def test_invented_driver_city_is_removed(self) -> None:
+        agent, _ = make_agent(
+            [
+                '{"tool":"rank_loads","args":{"driver_city":"Dallas, TX","origin_state":"TX","dest_state":"GA"}}',
+                '{"answer":"SD-1001 is best for a driver in Dallas, TX."}',
+            ]
+        )
+        result = agent.run("Rank the Texas to Georgia loads for me.")
+        self.assertIsNone(result.steps[0].args.get("driver_city"))
+        self.assertNotIn("Dallas", result.answer)
+        self.assertIn("unspecified location", result.answer)
+        self.assertIn("deadhead", result.answer.lower())
+
+    def test_returned_load_ids_are_appended_when_model_omits_them(self) -> None:
+        agent, _ = make_agent(
+            [
+                '{"tool":"search_loads","args":{"origin_state":"CA","dest_state":"WA","trailer_type":"enclosed","max_rate":2000}}',
+                '{"answer":"I found one enclosed load for $1950."}',
+            ]
+        )
+        result = agent.run("Find enclosed loads from California to Washington under $2,000.")
+        self.assertIn("SD-1006", result.answer)
+        self.assertIn("Load IDs:", result.answer)
+
+    def test_explicit_watchlist_add_is_completed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "watchlist.json"
+            with patch.object(config, "WATCHLIST_FILE", path):
+                agent, _ = make_agent(
+                    [
+                        '{"tool":"rank_loads","args":{"driver_city":"Dallas, TX","origin_state":"TX","dest_state":"GA","trailer_type":"open"}}',
+                        '{"answer":"SD-1001 is best."}',
+                    ]
+                )
+                result = agent.run(
+                    "Find the best open-trailer load from Texas to Georgia for a driver "
+                    "in Dallas, then add it to my watchlist."
+                )
+                self.assertEqual(result.tools_used[-1], "watchlist")
+                self.assertTrue(result.steps[-1].result["ok"])
+                self.assertIn("Saved SD-1001", result.answer)
+
+    def test_step_limit_retries_when_model_still_calls_a_tool(self) -> None:
+        agent, llm = make_agent(
+            [
+                '{"tool":"search_loads","args":{"origin_state":"TX"}}',
+                '{"tool":"search_loads","args":{"origin_state":"GA"}}',
+                '{"tool":"search_loads","args":{"origin_state":"CA"}}',
+                "Plain-text summary.",
+            ],
+            max_steps=2,
+        )
+        result = agent.run("many steps")
+        self.assertEqual(result.stopped_reason, "max_steps")
+        self.assertTrue(result.answer.startswith("Plain-text summary."))
+        self.assertIn("plain prose", llm.histories[-1][-1]["content"])
 
     def test_llm_failure_is_reported(self) -> None:
         class BrokenLLM:

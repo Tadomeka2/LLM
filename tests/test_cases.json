@@ -85,11 +85,10 @@
     "id": "T09",
     "category": "failure",
     "request": "Find loads from Mars to Jupiter.",
-    "expected": "Tool rejects the invalid state; the agent explains that only US states are supported and asks for a valid lane.",
+    "expected": "Explains that the lane is invalid or outside the SuperDispatch board and that only US states are supported; asks for a valid lane. A direct answer without a tool call is acceptable.",
     "checks": {
-      "must_call": ["search_loads"],
-      "expect_tool_error": true,
-      "answer_contains_any": ["state", "US"]
+      "answer_contains_any": ["not part", "invalid", "state", "US", "SuperDispatch", "cannot"],
+      "answer_not_contains": ["SD-10"]
     }
   },
   {

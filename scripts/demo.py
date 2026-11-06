@@ -47,6 +47,7 @@ def main() -> int:
     parser.add_argument("--4bit", dest="four_bit", action="store_true", help="Load in 4-bit (CUDA only)")
     parser.add_argument("--ask", default=None, help="Run one request and exit")
     parser.add_argument("--max-steps", type=int, default=8, help="Maximum tool steps per request")
+    parser.add_argument("--max-new-tokens", type=int, default=512, help="Generation cap per model turn")
     parser.add_argument("--temperature", type=float, default=0.1, help="Sampling temperature (0 = greedy)")
     parser.add_argument("--show-trace", action="store_true", help="Print every step after the answer")
     parser.add_argument("--quiet", action="store_true", help="Hide step-by-step tool logging")
@@ -64,6 +65,7 @@ def main() -> int:
         model_id,
         device=args.device,
         load_in_4bit=args.four_bit,
+        max_new_tokens=args.max_new_tokens,
         temperature=args.temperature,
         verbose=not args.quiet,
     )

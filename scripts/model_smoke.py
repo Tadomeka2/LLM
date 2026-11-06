@@ -22,9 +22,10 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", default="Qwen/Qwen2.5-1.5B-Instruct")
     parser.add_argument("--device", default=None)
+    parser.add_argument("--4bit", dest="four_bit", action="store_true")
     args = parser.parse_args()
 
-    llm = LocalLLM(args.model, device=args.device)
+    llm = LocalLLM(args.model, device=args.device, load_in_4bit=args.four_bit)
     try:
         reply = llm.chat(
             [
